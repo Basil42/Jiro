@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(LineRenderer))]
 public class polygonTracer : MonoBehaviour
@@ -21,23 +22,37 @@ public class polygonTracer : MonoBehaviour
     Vector3[] frontTracePoints;
     Vector3[] WingTracePoints;
     private LineRenderer line;
+    [Header("Debug")]
+    public float currentStep;
+    
     public IEnumerator Trace()
     {
         isTracing = true;
-        Vector3 previousposition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector3 previousposition = Camera.main.ScreenToWorldPoint(Input.mousePosition +Vector3.forward*10.0f);
+        Vector3 currentPosition;
         List<Vector3> points = new List<Vector3>();
         points.Add(previousposition);
         while (Input.GetMouseButton(0))//keep looping as long as the user keeps the button pressed
         {
-            if(Vector3.Distance(previousposition, Camera.main.ScreenToWorldPoint(Input.mousePosition)) > tracingStep)//add a point in the tracing
+            currentPosition = Camera.main.ScreenToWorldPoint(Input.mousePosition + Vector3.forward * 10.0f);
+            currentStep = Vector3.Distance(previousposition, currentPosition);
+            if (currentStep > tracingStep)//add a point in the tracing
             {
-                previousposition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                previousposition =currentPosition;
                 points.Add(previousposition);
-                line.SetPositions(points.ToArray());
+                line.positionCount = points.Count;
+                line.SetPositions(points.ToArray());//not ideal, should probably pre allocate the memory for this
+                
             }
             yield return null;
         }
-
+        if (Vector3.Distance(points[points.Count - 1], points[0]) > closingDistance)
+        {
+            line.positionCount = 0;
+            yield break;
+        }
+        line.positionCount++;
+        line.SetPosition(line.positionCount - 1, line.GetPosition(0));
         switch (direction)
         {
             case (TraceDirection.side):
@@ -55,10 +70,46 @@ public class polygonTracer : MonoBehaviour
 
         }
         isTracing = false;// swap this for an event?
+        Debug.Log("trace done with " + line.positionCount + " points.");
     }
 
     public Mesh GetMesh()//this should give a copy, not a reference
     {
         return Instantiate(mesh);
     }
+
+    private void Update()
+    {
+        if (Input.GetMouseButtonDown(0) && !EventSystem.current.IsPointerOverGameObject()) StartCoroutine(Trace());
+
+    }
+    private void Awake()
+    {
+        line = GetComponent<LineRenderer>();
+        
+    }
+    public void setMode(TraceDirection mode)
+    {
+        direction = mode;
+        switch (direction)
+        {
+            case TraceDirection.side:
+                if(sideTracePoints != null)
+                {
+
+                }
+                else
+                {
+
+                }
+                break;
+            case TraceDirection.front:
+                break;
+            case TraceDirection.wings:
+                break;
+            default:
+                break;
+        }
+    }
+        
 }

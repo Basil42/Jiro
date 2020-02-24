@@ -40,13 +40,17 @@ public class UImanager : MonoBehaviour
     }
     public void OnFailedPlaneBuild()
     {
-        
+
     }
     private void Awake()
     {
         limiterPlaneMat = limiterPlane.GetComponent<Renderer>().material;
     }
     private void Start()
+    {
+        refreshLimitPlane();
+    }
+    public void OnRefreshLimitDisplay()
     {
         refreshLimitPlane();
     }

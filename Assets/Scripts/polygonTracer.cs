@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Events;
+using System;
 
 [RequireComponent(typeof(LineRenderer))]
 public class polygonTracer : MonoBehaviour
@@ -125,12 +126,39 @@ public class polygonTracer : MonoBehaviour
         //build side "cylinder"
         Mesh sidemesh = new Mesh();
         assembleViewmesh(sidemesh);
+        //rotate the side mesh
+        List<Vector3> rotatedVert = new List<Vector3>();
+        rotatedVert.Capacity = sidemesh.vertexCount;
+        List<Vector3> rawVert = new List<Vector3>();
+        rawVert.Capacity = sidemesh.vertexCount;
+        sidemesh.GetVertices(rawVert);
+        Quaternion rotation = Quaternion.AngleAxis(90, Vector3.up);
+        for(int i = 0; i < sidemesh.vertexCount; i++)
+        {
+            rotatedVert[i] = rotation * rawVert[i];
+        }
         //only do uvs now if absolutely necessary
-        //center the whole thing
-        meshtester.mesh = sidemesh;
+        //center the whole thing by translating it by the coordinates of the average vertex
+        Mesh frontmesh = new Mesh();
+        assembleViewmesh(frontmesh);
+        
+        Mesh resultMesh = new Mesh();
+        AddProjection(resultMesh, sidemesh, frontmesh,Vector3.left);
+        AddProjection(resultMesh, frontmesh, sidemesh,Vector3.forward);
         //front mesh
         PlaneBuilt.Raise();
         return true;
+    }
+
+    private void AddProjection(Mesh outputMesh, Mesh projectedMesh, Mesh projectionTarget,Vector3 direction)
+    {
+        meshtester.mesh = projectionTarget;
+        LayerMask targetlayer = LayerMask.NameToLayer("meshHolder");
+        Vector3 projDirection = 
+        foreach (var vertex in projectedMesh.vertices)
+        {
+            if(Physics.Raycast(origin: vertex,direction))
+        }
     }
 
     private void assembleViewmesh(Mesh sidemesh)

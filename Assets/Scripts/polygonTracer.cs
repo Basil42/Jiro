@@ -37,7 +37,8 @@ public class polygonTracer : MonoBehaviour
     public GameEvent FailBuildingPlane;
     [Header("Debug")]
     public float currentStep;
-    public MeshFilter meshtester;
+    public MeshFilter meshholder;
+    public MeshFilter meshVis;
     
     public IEnumerator Trace()
     {
@@ -125,82 +126,298 @@ public class polygonTracer : MonoBehaviour
         }
         //build side "cylinder"
         Mesh sidemesh = new Mesh();
-        assembleViewmesh(sidemesh);
+        assembleViewmesh(sidemesh,TraceDirection.side);
         //rotate the side mesh
-        List<Vector3> rotatedVert = new List<Vector3>();
-        rotatedVert.Capacity = sidemesh.vertexCount;
-        List<Vector3> rawVert = new List<Vector3>();
-        rawVert.Capacity = sidemesh.vertexCount;
-        sidemesh.GetVertices(rawVert);
+        
+        
+        List<Vector3> rotVert = new List<Vector3>();
+        rotVert.Capacity = sidemesh.vertexCount;
+        sidemesh.GetVertices(rotVert);
         Quaternion rotation = Quaternion.AngleAxis(90, Vector3.up);
         for(int i = 0; i < sidemesh.vertexCount; i++)
         {
-            rotatedVert[i] = rotation * rawVert[i];
+            rotVert[i] = rotation * rotVert[i];
         }
+        sidemesh.SetVertices(rotVert);
         //only do uvs now if absolutely necessary
         //center the whole thing by translating it by the coordinates of the average vertex
         Mesh frontmesh = new Mesh();
-        assembleViewmesh(frontmesh);
+        assembleViewmesh(frontmesh,TraceDirection.front);
         
         Mesh resultMesh = new Mesh();
-        AddProjection(resultMesh, sidemesh, frontmesh,Vector3.left);
-        AddProjection(resultMesh, frontmesh, sidemesh,Vector3.forward);
-        //front mesh
+        Collapsemeshes(resultMesh, sidemesh, frontmesh);
+
+        mesh = resultMesh;
         PlaneBuilt.Raise();
         return true;
     }
 
-    private void AddProjection(Mesh outputMesh, Mesh projectedMesh, Mesh projectionTarget,Vector3 direction)
+    void Collapsemeshes(Mesh outputMesh, Mesh sideMesh, Mesh frontMesh)
     {
-        meshtester.mesh = projectionTarget;
-        LayerMask targetlayer = LayerMask.NameToLayer("meshHolder");
-        Vector3 projDirection = 
-        foreach (var vertex in projectedMesh.vertices)
+        List<Vector3> resultVerts = new List<Vector3>();
+        List<int> resultTris = new List<int>();//needs to offset all indices for the second half of it;
+        //side on front
         {
-            if(Physics.Raycast(origin: vertex,direction))
+            Physics.autoSimulation = false;
+
+            MeshCollider targetcollider = meshholder.GetComponent<MeshCollider>();
+            //meshholder.mesh = frontMesh;
+            //meshVis.mesh = sideMesh;
+            targetcollider.sharedMesh = frontMesh;
+
+            LayerMask targetlayer = LayerMask.NameToLayer("meshHolder");
+            List<Vector3> projectedVerts = new List<Vector3>();
+            List<int> projTris = new List<int>();
+            projTris.AddRange(sideMesh.GetTriangles(0));
+            sideMesh.GetVertices(projectedVerts);
+
+            RaycastHit hit;
+            bool CompleteMiss = true;
+            sideMesh.RecalculateBounds();
+            sideMesh.RecalculateNormals();
+            sideMesh.RecalculateTangents();
+            frontMesh.RecalculateBounds();
+            frontMesh.RecalculateNormals();
+            frontMesh.RecalculateTangents();
+            //yield return new WaitForFixedUpdate();
+            //yield return new WaitForFixedUpdate();
+            Physics.Simulate(0.1f);
+            int hitCount = 0;
+
+            Ray ray = new Ray();
+            ray.direction = Vector3.right;
+            for (int i = 0; i < projectedVerts.Count / 2; i++)
+            {
+                ray.origin = projectedVerts[i];
+
+                if (targetcollider.Raycast(ray, out hit, 500f))
+                {
+                    CompleteMiss = false;
+                    //Debug.DrawRay(projectedVerts[i], Vector3.right * 10f, Color.blue, 1f, true);
+
+                    hitCount++;
+
+                    projectedVerts[i] = hit.point;
+
+                }
+                else//vertex is outside the defined shape of the other shape
+                {
+                    //Debug.DrawRay(projectedVerts[i], Vector3.right * 10f, Color.red, 1.0f, true);
+                    //remove all triangle involving this vertex
+                    for (int t = 0; t < projTris.Count;)
+                    {
+                        if (projTris[t] == i || projTris[t + 1] == i || projTris[t + 2] == i)
+                        {
+                            projTris.RemoveRange(t, 3);
+
+                        }
+                        else
+                        {
+                            t += 3;
+                        }
+                    }
+                }
+            }
+
+            if (CompleteMiss == true) Debug.Log("All vertices missed the target shape.");
+            ray.direction = -Vector3.right;
+            for (int i = projectedVerts.Count / 2; i < projectedVerts.Count; i++)
+            {
+                ray.origin = projectedVerts[i];
+
+                if (targetcollider.Raycast(ray, out hit, 500f))
+                {
+                    CompleteMiss = false;
+                    //Debug.Log("hit");
+                    //Debug.DrawRay(projectedVerts[i], -Vector3.right * 10f, Color.blue, 500f, true);
+                    hitCount++;
+                    projectedVerts[i] = hit.point;
+                }
+                else//vertex is outside the defined shape of the other shape
+                {
+                    for (int t = 0; t < projTris.Count;)
+                    {
+                        if (projTris[t] == i || projTris[t + 1] == i || projTris[t + 2] == i)
+                        {
+                            projTris.RemoveRange(t, 3);
+
+                        }
+                        else
+                        {
+                            t += 3;
+                        }
+                    }
+                    //Debug.DrawRay(projectedVerts[i], -Vector3.right * 10f, Color.red, 500.0f, true);
+                    //remove all triangle involving this vertex
+                }
+            }
+            Debug.Log(hitCount + "hits, out of " + projectedVerts.Count);
+            Physics.autoSimulation = true;
+            resultVerts.AddRange(projectedVerts);
+            resultTris.AddRange(projTris);
         }
+        //front on side
+        {
+            Physics.autoSimulation = false;
+
+            MeshCollider targetcollider = meshholder.GetComponent<MeshCollider>();
+            //meshholder.mesh = frontMesh;
+            //meshVis.mesh = sideMesh;
+            targetcollider.sharedMesh = sideMesh;
+
+            LayerMask targetlayer = LayerMask.NameToLayer("meshHolder");
+            List<Vector3> projectedVerts = new List<Vector3>();
+            List<int> projTris = new List<int>();
+            projTris.AddRange(frontMesh.GetTriangles(0));
+            frontMesh.GetVertices(projectedVerts);
+
+            RaycastHit hit;
+            bool CompleteMiss = true;
+            
+            Physics.Simulate(0.1f);
+            int hitCount = 0;
+
+            Ray ray = new Ray();
+            ray.direction = Vector3.forward;
+            for (int i = 0; i < projectedVerts.Count / 2; i++)
+            {
+                ray.origin = projectedVerts[i];
+
+                if (targetcollider.Raycast(ray, out hit, 500f))
+                {
+                    CompleteMiss = false;
+                    //Debug.DrawRay(projectedVerts[i], Vector3.right * 10f, Color.blue, 1f, true);
+
+                    hitCount++;
+
+                    projectedVerts[i] = hit.point;
+
+                }
+                else//vertex is outside the defined shape of the other shape
+                {
+                    Debug.DrawRay(projectedVerts[i], Vector3.right * 10f, Color.red, 1.0f, true);
+                    //remove all triangle involving this vertex
+                    for (int t = 0; t < projTris.Count;)
+                    {
+                        if (projTris[t] == i || projTris[t + 1] == i || projTris[t + 2] == i)
+                        {
+                            projTris.RemoveRange(t, 3);
+
+                        }
+                        else
+                        {
+                            t += 3;
+                        }
+                    }
+                }
+            }
+
+            if (CompleteMiss == true) Debug.Log("All vertices missed the target shape.");
+            ray.direction = -Vector3.forward;
+            for (int i = projectedVerts.Count / 2; i < projectedVerts.Count; i++)
+            {
+                ray.origin = projectedVerts[i];
+
+                if (targetcollider.Raycast(ray, out hit, 500f))
+                {
+                    CompleteMiss = false;
+                    //Debug.Log("hit");
+                    //Debug.DrawRay(projectedVerts[i], -Vector3.right * 10f, Color.blue, 500f, true);
+                    hitCount++;
+                    projectedVerts[i] = hit.point;
+                }
+                else//vertex is outside the defined shape of the other shape
+                {
+                    for (int t = 0; t < projTris.Count;)
+                    {
+                        if (projTris[t] == i || projTris[t + 1] == i || projTris[t + 2] == i)
+                        {
+                            projTris.RemoveRange(t, 3);
+
+                        }
+                        else
+                        {
+                            t += 3;
+                        }
+                    }
+                    //Debug.DrawRay(projectedVerts[i], -Vector3.right * 10f, Color.red, 500.0f, true);
+                    //remove all triangle involving this vertex
+                }
+            }
+            Debug.Log(hitCount + "hits, out of " + projectedVerts.Count);
+            Physics.autoSimulation = true;
+            //offset triangles to new vertex index
+            int vertoffset = resultVerts.Count;
+            for (int i = 0; i < projTris.Count; i++)
+            {
+                projTris[i] += vertoffset;
+            }
+
+            resultVerts.AddRange(projectedVerts);
+            resultTris.AddRange(projTris);
+        }
+        outputMesh.SetVertices(resultVerts);
+        outputMesh.SetTriangles(resultTris, 0);
+        //uv mapping
+
     }
 
-    private void assembleViewmesh(Mesh sidemesh)
+    private void assembleViewmesh(Mesh targetMesh,TraceDirection direction)
     {
-        var sideVert = new Vector3[(sideTracePoints.Length * 2)];
-        var sidetris = new int[(sideTracePoints.Length * 2) * 3];
+        Vector3[] TracePoints;
+        switch (direction)
+        {
+            case TraceDirection.side:
+                TracePoints = sideTracePoints;
+                break;
+            case TraceDirection.front:
+                TracePoints = frontTracePoints;
+                break;
+            case TraceDirection.wings:
+                TracePoints = wingTracePoints;
+                break;
+            default:
+                TracePoints = new Vector3[0];
+                break;
+        }
+        var Vert = new Vector3[(TracePoints.Length * 2)];
+        var tris = new int[(TracePoints.Length * 2) * 3];
         //populate vertices array
         {
             //trace to vertices
-            sideTracePoints.CopyTo(sideVert, 0);
-            for (int i = sideTracePoints.Length - 1; i >= 0; i--)
+            TracePoints.CopyTo(Vert, 0);
+            for (int i = TracePoints.Length - 1; i >= 0; i--)
             {
-                sideVert[i].z = -50;
+                Vert[i].z = -10;
             }
             //duplication
-            sideTracePoints.CopyTo(sideVert, sideTracePoints.Length);
-            for (int i = sideTracePoints.Length; i < sideVert.Length; i++)
+            TracePoints.CopyTo(Vert, TracePoints.Length);
+            for (int i = TracePoints.Length; i < Vert.Length; i++)
             {
-                sideVert[i].z = 50;
+                Vert[i].z = 10;
             }
         }
 
         //set up triangles
-        int length = sideTracePoints.Length;
+        int length = TracePoints.Length;
         for (int i = 0; i < length - 1; i++)
         {
-            sidetris[i * 6] = i;
-            sidetris[(i * 6) + 1] = i + 1;
-            sidetris[(i * 6) + 2] = i + length;
-            sidetris[(i * 6) + 3] = i + 1;
-            sidetris[(i * 6) + 4] = i + length + 1;
-            sidetris[(i * 6) + 5] = i + length;
+            tris[i * 6] = i;
+            tris[(i * 6) + 1] = i + 1;
+            tris[(i * 6) + 2] = i + length;
+            tris[(i * 6) + 3] = i + 1;
+            tris[(i * 6) + 4] = i + length + 1;
+            tris[(i * 6) + 5] = i + length;
         }
         //closing the loop
-        sidetris[(length - 1) * 6] = length - 1;
-        sidetris[((length - 1) * 6) + 1] = 0;
-        sidetris[((length - 1) * 6) + 2] = length - 1 + length;
-        sidetris[((length - 1) * 6) + 3] = 0;
-        sidetris[((length - 1) * 6) + 4] = length;
-        sidetris[((length - 1) * 6) + 5] = length - 1 + length;
-        sidemesh.SetVertices(sideVert);
-        sidemesh.SetTriangles(sidetris, 0, true);
+        tris[(length - 1) * 6] = length - 1;
+        tris[((length - 1) * 6) + 1] = 0;
+        tris[((length - 1) * 6) + 2] = length - 1 + length;
+        tris[((length - 1) * 6) + 3] = 0;
+        tris[((length - 1) * 6) + 4] = length;
+        tris[((length - 1) * 6) + 5] = length - 1 + length;
+        targetMesh.SetVertices(Vert);
+        targetMesh.SetTriangles(tris, 0, true);
     }
 
     public Mesh GetMesh()//this should give a copy, not a reference
@@ -300,5 +517,30 @@ public class polygonTracer : MonoBehaviour
     public float getBotlimit()
     {
         return BotLimit;
+    }
+    public void RaycastTest()
+    {
+        //if (Physics.Raycast(Vector3.zero, Vector3.left * 10f, float.PositiveInfinity, LayerMask.NameToLayer("meshHolder")))
+        //{
+        //    Debug.Log("hitRegistered");
+        //}
+        //else
+        //{
+        //    Debug.Log("No hit registered");
+        //    Debug.DrawRay(Vector3.zero, Vector3.left * 10f, Color.blue,5.0f);
+        //}
+        Vector3 direc;
+        for(float f = 0f; f <= 2*Mathf.PI; f += 0.05f)
+        {
+            direc = new Vector3(Mathf.Cos(f), Mathf.Sin(f), 0f);
+            if (Physics.Raycast(Vector3.zero, direc, LayerMask.NameToLayer("meshHolder")))
+            {
+                Debug.DrawRay(transform.position, direc * 50f,Color.blue,500f);
+            }
+            else
+            {
+                Debug.DrawRay(transform.position, direc * 50f, Color.red,500f);
+            }
+        }
     }
 }

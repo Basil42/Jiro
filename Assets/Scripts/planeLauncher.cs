@@ -4,17 +4,12 @@ using UnityEngine;
 
 public class planeLauncher : MonoBehaviour
 {
-    Mesh meshRef;
-    GameObject planeprefab;
-    // Start is called before the first frame update
-    void Start()
+    //[HideInInspector]public Mesh meshRef;
+    public GameObject planeprefab;
+    public polygonTracer tracer;
+    public void OnPlaneBuilt()
     {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        GameObject plane = Instantiate(planeprefab);
+        plane.GetComponent<MeshFilter>().mesh = tracer.GetMesh();
     }
 }

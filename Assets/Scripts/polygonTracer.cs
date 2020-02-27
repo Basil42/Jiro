@@ -21,7 +21,7 @@ public class polygonTracer : MonoBehaviour
     public float closingDistance = 1.0f;//maximum distance the game will try to close the loop of the players tracing
     public float DefaultTopLimit = 500f;
     public float DefaultBotLimit = -500f;
-    Mesh mesh;
+    public Mesh mesh;
     Vector3[] sideTracePoints;
     Vector3[] frontTracePoints;
     Vector3[] wingTracePoints;
@@ -44,7 +44,7 @@ public class polygonTracer : MonoBehaviour
     {
         
         StartTrace.Raise();
-        if(limiter == direction)
+        if(limiter == direction || direction == TraceDirection.wings)
         {
             TopLimit = DefaultTopLimit;
             BotLimit = DefaultBotLimit;
@@ -76,6 +76,13 @@ public class polygonTracer : MonoBehaviour
         if (Vector3.Distance(points[points.Count - 1], points[0]) > closingDistance)
         {
             line.positionCount = 0;
+            if (direction == TraceDirection.wings && limiter == TraceDirection.front)
+            {
+                findLimits(frontTracePoints, limiter);
+            }else if(direction == TraceDirection.wings && limiter == TraceDirection.side)
+            {
+                findLimits(sideTracePoints, limiter);
+            }
             StopTrace.Raise();
             yield break;
         }
@@ -84,15 +91,16 @@ public class polygonTracer : MonoBehaviour
         switch (direction)
         {
             case (TraceDirection.side):
-                if (frontTracePoints == null)findLimits(points,TraceDirection.side);
+                if (frontTracePoints == null)findLimits(points.ToArray(),TraceDirection.side);
                 sideTracePoints = points.ToArray();
                 break;
             case (TraceDirection.front):
-                if (sideTracePoints == null) findLimits(points, TraceDirection.front);
+                if (sideTracePoints == null) findLimits(points.ToArray(), TraceDirection.front);
                 frontTracePoints = points.ToArray();
                 break;
             case (TraceDirection.wings):
                 wingTracePoints = points.ToArray();
+                
                 break;
             default:
                 Debug.LogError("Invalid tracing direction/type");
@@ -104,7 +112,7 @@ public class polygonTracer : MonoBehaviour
         Debug.Log("trace done with " + line.positionCount + " points.");
     }
 
-    private void findLimits(List<Vector3> points,TraceDirection direction)
+    private void findLimits(Vector3[] points,TraceDirection direction)
     {
         TopLimit = DefaultBotLimit;
         BotLimit = DefaultTopLimit;
@@ -139,17 +147,49 @@ public class polygonTracer : MonoBehaviour
             rotVert[i] = rotation * rotVert[i];
         }
         sidemesh.SetVertices(rotVert);
+
         //only do uvs now if absolutely necessary
         //center the whole thing by translating it by the coordinates of the average vertex
         Mesh frontmesh = new Mesh();
         assembleViewmesh(frontmesh,TraceDirection.front);
-        
+        //create wingmesh
+        Mesh wingMesh = new Mesh();
+        assembleWingmesh(wingMesh);
+        //rotate and place wing mesh
+        rotVert = new List<Vector3>();
+        rotVert.Capacity = wingMesh.vertexCount;
+        wingMesh.GetVertices(rotVert);
+        rotation = Quaternion.AngleAxis(90, Vector3.right);//might be actually left or need to be rotated around y as well
+        for(int i =0; i < wingMesh.vertexCount; i++)
+        {
+            rotVert[i] = rotation * rotVert[i];
+        }
+        wingMesh.SetVertices(rotVert);
+        //assemble into single mesh
         Mesh resultMesh = new Mesh();
+        mesh = new Mesh();
         Collapsemeshes(resultMesh, sidemesh, frontmesh);
-
-        mesh = resultMesh;
+        AssemblePlane(resultMesh, wingMesh, mesh);
+        mesh.RecalculateBounds();
+        mesh.RecalculateNormals();
+        mesh.RecalculateTangents();
         PlaneBuilt.Raise();
         return true;
+    }
+
+    private void AssemblePlane(Mesh BodyMesh, Mesh wingMesh, Mesh targetMesh)
+    {
+        CombineInstance[] combine = new CombineInstance[2];
+        combine[1].mesh = BodyMesh;
+        combine[1].transform = Matrix4x4.identity;
+        combine[0].mesh = wingMesh;
+        combine[0].transform = Matrix4x4.identity;
+        //combine[0]
+        
+        targetMesh.CombineMeshes(combine);
+        
+        Debug.Log("body verts: " + BodyMesh.vertexCount + " wing verts :" + wingMesh.vertexCount + " result in " + targetMesh.vertexCount + " of " + (wingMesh.vertexCount + BodyMesh.vertexCount) + " expected.");
+        if (targetMesh != mesh) Debug.LogError("mesh not properly assigned.");
     }
 
     void Collapsemeshes(Mesh outputMesh, Mesh sideMesh, Mesh frontMesh)
@@ -356,10 +396,16 @@ public class polygonTracer : MonoBehaviour
             resultVerts.AddRange(projectedVerts);
             resultTris.AddRange(projTris);
         }
+        
         outputMesh.SetVertices(resultVerts);
         outputMesh.SetTriangles(resultTris, 0);
-        //uv mapping
 
+        //outputMesh.RecalculateBounds();
+        //outputMesh.RecalculateNormals();
+        //outputMesh.RecalculateTangents();
+        //outputMesh.Optimize();
+        //uv mapping
+        Debug.Log(outputMesh.vertices.Length + " vert and " + outputMesh.triangles.Length / 3 + " tris");
     }
 
     private void assembleViewmesh(Mesh targetMesh,TraceDirection direction)
@@ -419,7 +465,29 @@ public class polygonTracer : MonoBehaviour
         targetMesh.SetVertices(Vert);
         targetMesh.SetTriangles(tris, 0, true);
     }
-
+    private void assembleWingmesh(Mesh targetMesh)
+    {
+        if (wingTracePoints.Length < 3) return;
+        int lowerIndex = 1;
+        int upperIndex = wingTracePoints.Length - 1;
+        bool upperstep = false;
+        List<int> resultTris = new List<int>();
+        resultTris.Capacity = (wingTracePoints.Length - 2) * 3;
+        resultTris.Add(0);
+        resultTris.Add(lowerIndex);
+        resultTris.Add(upperIndex);
+        while(lowerIndex < upperIndex)
+        {
+            resultTris.Add(upperIndex);
+            resultTris.Add(lowerIndex);
+            resultTris.Add(upperstep ? --upperIndex : ++lowerIndex);
+            upperstep = !upperstep;
+        }
+        targetMesh.SetVertices(wingTracePoints);
+        targetMesh.SetTriangles(resultTris, 0);
+        
+    }
+    
     public Mesh GetMesh()//this should give a copy, not a reference
     {
         if (mesh == null) return new Mesh();//return empty mesh if called before a mesh is built
@@ -432,7 +500,7 @@ public class polygonTracer : MonoBehaviour
     }
     public bool canAssemble()
     {
-        return !(sideTracePoints == null || frontTracePoints == null /*|| wingTracePoints == null*/);
+        return !(sideTracePoints == null || frontTracePoints == null || wingTracePoints == null);
     }
     private void Update()
     {

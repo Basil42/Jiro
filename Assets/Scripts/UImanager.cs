@@ -25,7 +25,11 @@ public class UImanager : MonoBehaviour
         {
             gameObject.SetActive(true);
         }
-        if (!tracerRef.canAssemble()) AssembleButton.SetActive(false);
+        if (!tracerRef.canAssemble())
+        {
+            AssembleButton.SetActive(false);
+            Debug.Log("can't assemble.");
+        }
         refreshLimitPlane();
     }
 

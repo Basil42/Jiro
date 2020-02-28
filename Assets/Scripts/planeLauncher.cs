@@ -9,7 +9,8 @@ public class planeLauncher : MonoBehaviour
     public polygonTracer tracer;
     public void OnPlaneBuilt()
     {
-        GameObject plane = Instantiate(planeprefab);
+        GameObject plane = Instantiate(planeprefab, transform);
+        plane.transform.position = transform.position;
         plane.GetComponent<MeshFilter>().mesh = tracer.GetMesh();
     }
 }

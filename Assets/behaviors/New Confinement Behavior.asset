@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: New Confinement Behavior
   m_EditorClassIdentifier: 
   center: {x: 5, y: 5, z: 30}
-  radius: 15
+  radius: 25

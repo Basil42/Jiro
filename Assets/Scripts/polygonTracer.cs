@@ -19,15 +19,18 @@ public class polygonTracer : MonoBehaviour
     [Header("Settings")]
     public float tracingStep = 1.0f;//spatial period of tracing sampling
     public float closingDistance = 1.0f;//maximum distance the game will try to close the loop of the players tracing
-    public float DefaultTopLimit = 500f;
-    public float DefaultBotLimit = -500f;
+    public float DefaultTopLimit = 5f;
+    public float DefaultBotLimit = -5f;
+    public float DefaultLeftLimit = -5f;
+    public float DefaultRightLimit = 5f;
     public Mesh mesh;
     Vector3[] sideTracePoints;
     Vector3[] frontTracePoints;
     Vector3[] wingTracePoints;
     
-    private float TopLimit = 500;
-    private float BotLimit = -500;
+    public float TopLimit = 500;
+    public float BotLimit = -500;
+
     private LineRenderer line;
     private Camera _cam ;
     [Header("Events")]
@@ -52,7 +55,7 @@ public class polygonTracer : MonoBehaviour
         Vector3 previousposition = _cam.ScreenToWorldPoint(Input.mousePosition +Vector3.forward*10.0f);
         Vector3 currentPosition;
         List<Vector3> points = new List<Vector3>();
-        if(!(previousposition.y > TopLimit || previousposition.y < BotLimit)) points.Add(previousposition);
+        if(!(previousposition.y > TopLimit || previousposition.y < BotLimit || previousposition.x < DefaultLeftLimit|| previousposition.x > DefaultRightLimit)) points.Add(previousposition);
         else
         {
             line.positionCount = 0;
@@ -63,7 +66,7 @@ public class polygonTracer : MonoBehaviour
         {
             currentPosition = _cam.ScreenToWorldPoint(Input.mousePosition + Vector3.forward * 10.0f);
             currentStep = Vector3.Distance(previousposition, currentPosition);
-            if (currentStep > tracingStep && !(currentPosition.y>TopLimit || currentPosition.y<BotLimit))//add a point in the tracing
+            if (currentStep > tracingStep && !(currentPosition.y>TopLimit || currentPosition.y<BotLimit || currentPosition.x < DefaultLeftLimit || currentPosition.x > DefaultRightLimit))//add a point in the tracing
             {
                 previousposition =currentPosition;
                 points.Add(previousposition);
@@ -114,20 +117,20 @@ public class polygonTracer : MonoBehaviour
 
     private void findLimits(Vector3[] points,TraceDirection direction)
     {
-        TopLimit = DefaultBotLimit;
-        BotLimit = DefaultTopLimit;
-
-        foreach (var point in points)
-        {
-            if (point.y > TopLimit) TopLimit = point.y;
-            else if (point.y < BotLimit) BotLimit = point.y;
-        }
+        TopLimit = DefaultTopLimit;
+        BotLimit = DefaultBotLimit;
+        
+        //foreach (var point in points)
+        //{
+        //    if (point.y > TopLimit) TopLimit = point.y;
+        //    else if (point.y < BotLimit) BotLimit = point.y;
+        //}
         limiter = direction;
     }
 
     private bool AssembleMesh()
     {
-        if (sideTracePoints == null || frontTracePoints == null /*|| wingTracePoints== null*/)
+        if (sideTracePoints == null || frontTracePoints == null || wingTracePoints== null)
         {
             FailBuildingPlane.Raise();
             return false;

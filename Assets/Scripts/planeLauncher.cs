@@ -11,6 +11,7 @@ public class planeLauncher : MonoBehaviour
     {
         GameObject plane = Instantiate(planeprefab, transform);
         plane.transform.position = transform.position;
+        plane.transform.LookAt(transform.position + Random.onUnitSphere);
         plane.GetComponent<MeshFilter>().mesh = tracer.GetMesh();
     }
 }

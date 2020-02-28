@@ -11,6 +11,11 @@ public class UImanager : MonoBehaviour
     public GameObject AssembleButton;
     public GameObject limiterPlane;
     private Material limiterPlaneMat;
+    public float LookUpY;
+    public float LookDownY;
+    public GameObject wall;
+    public GameObject[] DisabledOnLookUp;
+    public GameObject[] EnabledOnlookUp;
     public void OnTraceStart()//change this as soon as possible
     {
         refreshLimitPlane();
@@ -57,5 +62,51 @@ public class UImanager : MonoBehaviour
     public void OnRefreshLimitDisplay()
     {
         refreshLimitPlane();
+    }
+    public void OnLookup()
+    {
+        StartCoroutine(LookUp());
+    }
+    public void OnLookDown()
+    {
+        StartCoroutine(LookDown());
+    }
+    IEnumerator LookDown()
+    {
+        foreach (var item in EnabledOnlookUp)
+        {
+            item.SetActive(false);
+        }
+        Vector3 pos = wall.transform.position;
+        for(float i = 0.0f;i < 1; i += 0.05f)
+        {
+            pos.y = Mathf.SmoothStep(LookUpY, LookDownY, i);
+            wall.transform.position = pos;
+            yield return null;
+        }
+        foreach (var item in DisabledOnLookUp)
+        {
+            item.SetActive(true);
+        }
+        
+        OnTraceStop();
+    }
+    IEnumerator LookUp()
+    {
+        foreach (var item in DisabledOnLookUp)
+        {
+            item.SetActive(false);
+        }
+        Vector3 pos = wall.transform.position;
+        for (float i = 0.0f; i < 1; i += 0.05f)
+        {
+            pos.y = Mathf.SmoothStep(LookDownY, LookUpY, i);
+            wall.transform.position = pos;
+            yield return null;
+        }
+        foreach (var item in EnabledOnlookUp)
+        {
+            item.SetActive(true);
+        }
     }
 }

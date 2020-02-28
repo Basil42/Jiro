@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 960d5137426a2434d8f921d33ba68e35, type: 3}
   m_Name: New Confinement Behavior
   m_EditorClassIdentifier: 
-  center: {x: 0, y: 10, z: 50}
+  center: {x: 5, y: 5, z: 30}
   radius: 15

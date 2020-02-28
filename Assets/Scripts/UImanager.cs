@@ -78,7 +78,7 @@ public class UImanager : MonoBehaviour
             item.SetActive(false);
         }
         Vector3 pos = wall.transform.position;
-        for(float i = 0.0f;i < 1; i += 0.05f)
+        for(float i = 0.0f;i < 1; i += 0.005f)
         {
             pos.y = Mathf.SmoothStep(LookUpY, LookDownY, i);
             wall.transform.position = pos;
@@ -88,17 +88,18 @@ public class UImanager : MonoBehaviour
         {
             item.SetActive(true);
         }
-        
+        tracerRef.gameObject.SetActive(true);
         OnTraceStop();
     }
     IEnumerator LookUp()
     {
+        tracerRef.gameObject.SetActive(false);
         foreach (var item in DisabledOnLookUp)
         {
             item.SetActive(false);
         }
         Vector3 pos = wall.transform.position;
-        for (float i = 0.0f; i < 1; i += 0.05f)
+        for (float i = 0.0f; i < 1; i += 0.005f)
         {
             pos.y = Mathf.SmoothStep(LookDownY, LookUpY, i);
             wall.transform.position = pos;

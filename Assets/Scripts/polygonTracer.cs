@@ -185,8 +185,10 @@ public class polygonTracer : MonoBehaviour
         CombineInstance[] combine = new CombineInstance[2];
         combine[1].mesh = BodyMesh;
         combine[1].transform = Matrix4x4.identity;
+        BodyMesh.RecalculateBounds();
         combine[0].mesh = wingMesh;
-        combine[0].transform = Matrix4x4.identity;
+        var wingOffsetValue = BodyMesh.bounds.center.y;
+        combine[0].transform = Matrix4x4.Translate(Vector3.up*wingOffsetValue);
         //combine[0]
         
         targetMesh.CombineMeshes(combine);
